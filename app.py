@@ -1,277 +1,674 @@
 import streamlit as st
 from urllib.parse import quote_plus
-from datetime import date
+from datetime import date, timedelta
 
 st.set_page_config(page_title="PS5 YouTube Coach", page_icon="🎮", layout="wide")
 
+# PS5 YouTube Coach — rebuilt around one shared game value so every section
+# (plan, scripts, research, music, SEO and discovery) follows the user's input.
+
+PRESETS = [
+    "Ghost of Tsushima", "Grand Theft Auto V", "Grand Theft Auto VI", "Call of Duty",
+    "Call of Duty: Modern Warfare", "Minecraft", "Forza Horizon 5", "Forza Horizon 6",
+    "The Last of Us Part I", "The Last of Us Part II", "God of War (2018)",
+    "God of War Ragnarök", "Fortnite", "Valorant", "EA SPORTS FC", "Other / future game"
+]
+GENRES = ["Auto / not sure", "Action-adventure", "Open world", "FPS / shooter", "RPG",
+          "Racing", "Survival / horror", "Sandbox / building", "Sports", "Fighting",
+          "Strategy", "Simulation", "Indie / casual", "Story-driven", "Other"]
+STYLES = ["Cinematic", "Funny / entertaining", "Competitive / high-skill", "Educational / tutorial",
+          "Challenge / experiment", "Chill / story-driven"]
+FORMATS = ["Shorts (vertical)", "Long-form (horizontal)", "Both: Shorts + long-form"]
+GOALS = ["More views / discovery", "Improve click-through rate (CTR)", "Improve retention / watch time",
+         "Gain subscribers / community", "Monetize safely", "Post consistently / improve skills"]
+PLATFORMS = ["PlayStation 5", "Xbox Series X/S", "PC / laptop", "Nintendo Switch", "Mobile"]
+
 st.title("🎮 PS5 YouTube Coach")
-st.caption("A practical planning coach for gaming creators — built to work with any game, including future releases.")
-st.info("This free version uses structured coaching rules and templates. It does not use a live AI model, automatically inspect your YouTube channel, verify current game facts, upload videos, or guarantee views/monetization. It creates a plan immediately and gives you research links to check game-specific details when you want them.")
+st.caption("A rebuilt, game-agnostic planning assistant for gaming creators.")
+st.info("This version generates detailed plans from templates and creates search links. It does not automatically read YouTube analytics/comments or verify live trends, prices, game facts, music licences, or frame rates. Check linked sources before relying on current information.")
 
 with st.sidebar:
-    st.header("Your video")
-    game_choice = st.selectbox("Choose a game or enter your own", [
-        "Ghost of Tsushima", "Grand Theft Auto V", "Grand Theft Auto VI", "Minecraft",
-        "Forza Horizon 6", "The Last of Us Part I", "The Last of Us Part II",
-        "God of War (2018)", "God of War Ragnarök", "Other / future game"
-    ])
-    custom_game = st.text_input("Game name (for Other, or to specify a different game)", placeholder="e.g. an upcoming game")
-    game = custom_game.strip() if custom_game.strip() else game_choice
-    genre = st.selectbox("Game genre (optional but helpful)", [
-        "Auto / not sure", "Action-adventure", "Open-world", "RPG", "Racing", "Shooter / FPS",
-        "Survival / horror", "Sandbox / building", "Sports / fighting", "Story-driven", "Other"
-    ])
-    format_choice = st.selectbox("Video format", ["Shorts", "Long-form video", "Both (Short + long video)"])
-    style = st.selectbox("Video style", [
-        "Cinematic", "Funny / entertaining", "Competitive / high-skill", "Educational / tutorial",
-        "Challenge / experiment", "Chill / story-driven"
-    ])
-    goal = st.selectbox("Main goal", [
-        "More views / discovery", "Improve click-through rate (CTR)", "Improve retention / watch time",
-        "Gain subscribers / community", "Monetize safely", "Post consistently / improve skills"
-    ])
-    audience = st.selectbox("Target audience", ["General gaming audience", "Beginners", "Fans of the game", "Competitive players", "Story / lore fans"])
-    creator_language = st.selectbox("Video language", ["English", "Hindi", "Gujarati", "Hinglish", "Other / no dialogue"])
-    create = st.button("Build my coaching plan", type="primary", use_container_width=True)
+    st.header("1. Your game")
+    preset = st.selectbox("Quick-select a game", PRESETS, index=0, key="preset_game")
+    game_input = st.text_input("Custom game name (optional; overrides preset)", placeholder="e.g. Call of Duty: Modern Warfare 4", key="game_name_input")
+    # Single canonical game variable; custom input overrides the preset, and every section uses it.
+    game = game_input.strip() or ("your selected game" if preset == "Other / future game" else preset)
+    genre = st.selectbox("Game category / genre", GENRES, key="genre")
+    platform = st.selectbox("Your gaming platform", PLATFORMS, key="platform")
+    st.header("2. Your video")
+    video_format = st.selectbox("Format", FORMATS, key="video_format")
+    style = st.selectbox("Video style", STYLES, key="video_style")
+    goal = st.selectbox("Main goal", GOALS, key="goal")
+    language = st.selectbox("Video language", ["English", "Hindi", "Gujarati", "Hinglish", "Other / no dialogue"], key="language")
+    audience = st.selectbox("Intended audience", ["General gaming audience", "Beginners", "Fans of this game", "Competitive players", "Story / lore fans", "Casual viewers"], key="audience")
+    st.header("3. Creative categories")
+    script_angle = st.selectbox("Script / story angle", ["Funny moments", "Scary / suspense", "Cinematic story", "Beginner guide", "Challenge / experiment", "Competitive highlights", "Secrets / discoveries", "Honest review", "Relaxing gameplay", "Reaction / commentary"], key="script_angle")
+    edit_vibe = st.selectbox("Editing style", ["Fast meme cuts", "Cinematic slow build", "Horror suspense", "Clean tutorial", "Competitive montage", "Story documentary", "Cozy / relaxing", "High-energy Shorts", "Minimal raw gameplay"], key="edit_vibe")
+    music_mood = st.selectbox("Music mood", ["Cinematic orchestral", "Funny / quirky", "Dark horror ambience", "High-energy electronic", "Emotional piano", "Chill lo-fi", "Epic action percussion", "No music / game audio only"], key="music_mood")
+    title_style = st.selectbox("Title style", ["Curiosity", "Funny", "Scary", "Cinematic", "Tutorial / searchable", "Challenge", "Review / opinion"], key="title_style")
+    description_tone = st.selectbox("Description tone", ["Friendly creator", "Cinematic / story", "Helpful tutorial", "Funny / casual", "Competitive / direct"], key="description_tone")
+    tag_focus = st.selectbox("Tag strategy", ["Game + gameplay", "Tutorial / tips", "Funny moments", "Horror / reactions", "Cinematic / story", "Challenge", "Competitive / ranked"], key="tag_focus")
+    st.caption("Tip: choose ‘Keep my typed game’ and enter any game name, or select a preset to fill it in. Check the game name displayed below the inputs.")
 
-if not game.strip():
-    game = "your selected game"
+# One canonical URL builder: every search query is derived from the same game value.
+def search_url(base, query):
+    return base + quote_plus(query)
 
-styles = {
+web_search = search_url("https://www.google.com/search?q=", f"{game} {genre if genre != 'Auto / not sure' else ''} gameplay tips latest news")
+youtube_search = search_url("https://www.youtube.com/results?search_query=", f"{game} {style} gameplay")
+official_search = search_url("https://www.google.com/search?q=", f"{game} official website publisher news patch notes")
+trend_search = search_url("https://www.google.com/search?q=", f"gaming trends {game} YouTube videos {date.today().year}")
+
+style_data = {
     "Cinematic": {
-        "hook": "Open with your most visually striking moment, a surprising reveal, or a dramatic near-failure. Avoid a long logo intro.",
-        "edit": "Use deliberate pacing, clean cuts, a few motivated slow-motion moments, restrained color correction, and game audio under the music.",
-        "music": "Cinematic orchestral build, emotional piano, atmospheric strings, or subtle tension pulses.",
-        "keywords": "cinematic, orchestral, emotional piano, epic build, atmospheric, tension",
-        "thumb": "Choose one dramatic frame with a clear subject and readable silhouette; keep text short (2–4 words) and contrast strong."
+        "hook": "Open on the strongest visual, dramatic reveal, close call, or beautiful shot. Put context after the hook; skip a long intro.",
+        "music": "Cinematic orchestral, emotional piano, atmospheric strings, or restrained tension build.",
+        "keywords": "cinematic, orchestral, emotional piano, atmospheric, tension build, epic instrumental",
+        "edit": "Use intentional cuts, let important shots breathe, add only a few motivated slow-motion moments, and preserve ambience and dialogue."
     },
     "Funny / entertaining": {
-        "hook": "Start with the funniest failure, unexpected NPC moment, or punchline; set up context only after the hook.",
-        "edit": "Trim pauses aggressively, keep reaction audio understandable, use occasional zooms or captions for punchlines, and don't overuse sound effects.",
+        "hook": "Start with the funniest fail, unexpected event, or reaction; explain only the context viewers need.",
         "music": "Playful pizzicato, quirky percussion, light funk, or short comedic stings.",
-        "keywords": "playful, quirky, comedy, pizzicato, light funk, comedic",
-        "thumb": "Use a clear reaction or absurd in-game moment; one expressive focal point and a short curiosity-building phrase."
+        "keywords": "comedy, playful, quirky, pizzicato, light funk, comedic instrumental",
+        "edit": "Trim pauses, time cuts around the punchline, keep reactions clear, use occasional punch-in zooms/captions, and avoid sound-effect overload."
     },
     "Competitive / high-skill": {
-        "hook": "Show the clutch, cleanest play, record, or result in the first seconds, then quickly explain the stakes.",
-        "edit": "Keep gameplay readable, cut downtime, preserve key game sounds, use brief labels for loadout/strategy, and avoid effects that hide the action.",
-        "music": "Driving electronic beats, energetic percussion, dark synth, or restrained high-energy rock.",
-        "keywords": "high energy, electronic, driving percussion, dark synth, action, intense",
-        "thumb": "Make the key play or result obvious at phone size; use one focal subject and a short result/claim you can prove."
+        "hook": "Show the clutch, cleanest play, rank, or result immediately; quickly explain the stakes.",
+        "music": "Driving electronic beats, energetic percussion, dark synth, or restrained action rock.",
+        "keywords": "high energy, electronic, driving percussion, dark synth, action instrumental, intense",
+        "edit": "Keep action readable, cut downtime, preserve key gameplay sounds, briefly label loadouts/strategies, and avoid effects that hide the play."
     },
     "Educational / tutorial": {
-        "hook": "State the exact problem and the result viewers will learn in one sentence; show a quick preview of the outcome.",
-        "edit": "Use numbered steps, readable captions, close-ups of menus when needed, and remove repeated explanations. Verify every tip in-game.",
-        "music": "Soft electronic, light lo-fi, or unobtrusive instrumental music kept well below speech.",
-        "keywords": "light electronic, lo-fi instrumental, focus, minimal, tutorial background",
-        "thumb": "Show the problem and result together if possible; use a specific phrase such as '3 EASY TIPS' rather than vague clickbait."
+        "hook": "Show the problem and promised result first, then teach one clear method.",
+        "music": "Low-volume neutral electronic, light lo-fi, or unobtrusive ambient instrumental.",
+        "keywords": "minimal electronic, light lo-fi, calm background, tutorial, unobtrusive instrumental",
+        "edit": "Use numbered steps, zooms only where needed, readable captions, before/after examples, and pauses long enough for viewers to follow."
     },
     "Challenge / experiment": {
-        "hook": "State the rule, restriction, or question and the stakes immediately; tease the outcome without spoiling everything.",
-        "edit": "Make the rules easy to follow, show meaningful attempts, build tension toward the result, and cut repetitive failures unless they add comedy.",
-        "music": "Rhythmic build, playful tension, adventure percussion, or energetic instrumental cues.",
-        "keywords": "challenge, tension build, adventure, rhythmic percussion, playful suspense",
-        "thumb": "Show the challenge visually and communicate the restriction with only a few words; don't imply a result that didn't happen."
+        "hook": "State the rule and stakes in one sentence, then show a quick preview of the attempt.",
+        "music": "Building percussion, playful suspense, or energetic electronic instrumental.",
+        "keywords": "building tension, energetic electronic, suspense instrumental, challenge, percussion",
+        "edit": "Show the rules on screen, remove repetitive attempts, keep meaningful failures, add progress markers, and make the final outcome clear."
     },
     "Chill / story-driven": {
-        "hook": "Open on an intriguing story beat, beautiful environment, or thoughtful question; make the mood clear.",
-        "edit": "Keep dialogue and story context intact, use gentle transitions sparingly, balance music beneath speech, and avoid spoilers in titles/thumbnails.",
-        "music": "Ambient pads, gentle piano, atmospheric instrumental, or calm exploration music.",
-        "keywords": "ambient, atmospheric, gentle piano, exploration, calm instrumental, cinematic ambient",
-        "thumb": "Use a strong environment or character composition; if the video contains spoilers, avoid revealing them in the thumbnail."
+        "hook": "Begin with a compelling story beat, discovery, atmosphere, or question without spoiling more than intended.",
+        "music": "Ambient piano, gentle strings, atmospheric pads, or soft instrumental textures.",
+        "keywords": "ambient piano, atmospheric, gentle strings, emotional instrumental, exploration",
+        "edit": "Use longer shots when atmosphere matters, preserve dialogue, add subtle captions when useful, and avoid unnecessary transitions."
     }
 }
+selected_style = style_data[style]
 
-# Genre-aware guidance that does not pretend to know a game's current details.
-def genre_note(g):
-    notes = {
-        "Action-adventure": "Prioritize clear combat, traversal, and story context; avoid cutting so fast that viewers lose track of the action.",
-        "Open-world": "Build around a specific discovery, mission, location, or experiment rather than a generic 'gameplay' upload.",
-        "RPG": "Make the build, choice, quest, or outcome explicit; explain any jargon needed by new viewers.",
-        "Racing": "Show the car/event/settings or challenge early; keep speed readable and mix engine audio with music carefully.",
-        "Shooter / FPS": "Make the objective and stakes clear; keep HUD and important audio readable and don't obscure aiming/action.",
-        "Survival / horror": "Use suspenseful pacing, preserve important ambience, and clearly label spoilers if discussing story events.",
-        "Sandbox / building": "Show the final build/result early, then the process; use progress markers or before/after comparisons.",
-        "Sports / fighting": "Show the matchup, goal, or key technique; keep score/UI visible and explain rules when helpful.",
-        "Story-driven": "Protect narrative context and avoid spoiler thumbnails/titles unless the video is explicitly spoiler-marked.",
-        "Other": "Pick one clear viewer promise and explain the game-specific context instead of assuming everyone knows it."
+# Dynamic content generated on each Streamlit rerun from the current input.
+st.subheader("Current project")
+st.markdown(f"**Game:** {game}  ·  **Platform:** {platform}  ·  **Category:** {genre}  ·  **Format:** {video_format}")
+st.markdown(f"**Style:** {style}  ·  **Goal:** {goal}  ·  **Audience:** {audience}  ·  **Language:** {language}  ·  **Script angle:** {script_angle}")
+st.caption(f"Creative direction: editing = {edit_vibe} · music = {music_mood} · title = {title_style} · description = {description_tone} · tags = {tag_focus}")
+
+plan_tab, edit_tab, music_tab, research_tab, discovery_tab, publish_tab = st.tabs([
+    "🎬 Video plan & script", "✂️ Editing step-by-step", "🎵 Music & licensing",
+    "🔎 Game research", "🧭 Audience & game finder", "📅 Publish & measure"
+])
+
+with plan_tab:
+    st.header(f"Video plan for {game}")
+    st.write(f"**Concept:** Make a {style.lower()} video about one specific moment, question, challenge, discovery, or result in **{game}**. Avoid a generic montage unless the clips have a clear theme.")
+    st.write("**Opening hook:** " + selected_style["hook"])
+    if "Shorts" in video_format:
+        st.subheader("Shorts structure (adapt to the idea; don't pad it)")
+        st.markdown("- **0–2 seconds:** strongest moment or clear question.\n- **2–6 seconds:** minimum context viewers need.\n- **6–25 seconds:** action, explanation, escalation, or payoff.\n- **Final seconds:** result/reaction and a natural next-video prompt if relevant.")
+    if "Long-form" in video_format or "Both" in video_format:
+        st.subheader("Long-form structure")
+        st.markdown("- **0:00–0:15:** cold open showing the promise of the video.\n- **0:15–0:45:** explain the goal, challenge, or question.\n- **Main section:** progress through 3–5 clear beats; remove repetitive dead time.\n- **Payoff:** show the result and what changed.\n- **Ending:** concise conclusion and relevant next-video suggestion; avoid a long outro.")
+    angle_prompts = {
+        "Funny moments": "Set up the situation quickly, leave room for the reaction, and land the punchline without over-explaining.",
+        "Scary / suspense": "Build a question or threat, preserve important quiet audio, and delay the reveal until the footage earns it.",
+        "Cinematic story": "Use a visual opening, establish the emotional or story context, and let key shots breathe.",
+        "Beginner guide": "State the problem and result first, then explain each step in plain language.",
+        "Challenge / experiment": "State the rule, stakes, and success condition before showing attempts.",
+        "Competitive highlights": "Show the high-skill moment first, then explain the stakes and key decision.",
+        "Secrets / discoveries": "Present a specific question, show how you tested it, and distinguish confirmed facts from guesses.",
+        "Honest review": "Explain what you tested, what worked, what did not, and who may enjoy it.",
+        "Relaxing gameplay": "Keep the pacing calm, preserve ambience, and avoid loud edits that break the mood.",
+        "Reaction / commentary": "Use your genuine reaction and add context that makes the moment understandable to a new viewer."
     }
-    return notes.get(g, "Choose one specific moment, problem, discovery, or result to make the video distinct.")
+    st.subheader(f"Script starter — {script_angle}")
+    st.write("**Direction:** " + angle_prompts[script_angle])
+    script = f"""[HOOK — {script_angle}: show the strongest real moment from {game}]\n\nVOICE / CAPTION: “Today in {game}, I'm trying to [specific goal or question].”\n\n[CONTEXT] Explain the rule, mission, location, build, or problem in one or two sentences.\n\n[BEAT 1] Show the first meaningful attempt or discovery. Add a caption only if it improves understanding.\n\n[BEAT 2] Show escalation, a useful tip, a mistake, or a surprising turn.\n\n[PAYOFF] Show the actual result. Don't claim a win, secret, record, or discovery unless the footage proves it.\n\n[ENDING] “Would you try this in {game}? What should I test next?” (Use only if it fits your audience.)"""
+    st.text_area("Copy and customize this script", value=script, height=300, key="script_output")
+    st.subheader("Title ideas")
+    title_templates = {
+        "Curiosity": [f"I Didn't Expect This in {game}", f"What Happens If You Try This in {game}?", f"The Detail I Nearly Missed in {game}"],
+        "Funny": [f"{game} Went Completely Wrong", f"My Funniest {game} Moment Yet", f"I Thought This Would Work in {game}"],
+        "Scary": [f"The Creepiest Moment I Found in {game}", f"I Was Not Ready for This in {game}", f"Playing {game} With the Lights Off"],
+        "Cinematic": [f"A Cinematic Moment in {game}", f"{game} Looks Unreal in This Scene", f"A Quiet, Beautiful Moment in {game}"],
+        "Tutorial / searchable": [f"{game}: Beginner Tips to Know First", f"How to Improve at {game}", f"{game} Guide: A Simple Way to Start"],
+        "Challenge": [f"Can I Beat This Challenge in {game}?", f"I Tried {game} With One Rule", f"Can This Strategy Work in {game}?"],
+        "Review / opinion": [f"Is {game} Worth Playing? My Honest Take", f"What {game} Does Well — and What It Doesn't", f"Who Should Play {game}?"]
+    }
+    title_ideas = title_templates[title_style]
+    for t in title_ideas:
+        st.markdown(f"- {t}")
+    st.caption("Treat titles as drafts. Keep only claims your actual footage proves; don't use fake urgency or misleading promises.")
+    st.subheader(f"Description and tags — {description_tone} / {tag_focus}")
+    tone_openers = {
+        "Friendly creator": f"Hey everyone! In this video, we're playing {game} and exploring the moment shown in the footage.",
+        "Cinematic / story": f"A cinematic gameplay moment from {game}, focused on atmosphere, story, and the scene itself.",
+        "Helpful tutorial": f"This video covers a practical {game} tip. Check the steps below and adapt them to your version of the game.",
+        "Funny / casual": f"Things did not go exactly to plan in {game}. Here's the moment and how it played out.",
+        "Competitive / direct": f"A focused {game} gameplay session highlighting decisions, mechanics, and the final result."
+    }
+    description = f"{tone_openers[description_tone]}\n\nWhat happens: [write a short, accurate summary of this actual video].\n\nPlatform: {platform}\nGame: {game}\nFormat: {video_format}\nStyle: {style}\n\nMusic: [add track credit here if required by the licence].\n\nSubscribe or comment with a relevant suggestion if you want to see more."
+    st.text_area("Description template (customize before uploading)", value=description, height=180, key="description_template")
+    tag_templates = {
+        "Game + gameplay": [game, f"{game} gameplay", f"{game} {platform}", f"{game} walkthrough", f"{game} highlights"],
+        "Tutorial / tips": [game, f"{game} tips", f"{game} beginner guide", f"how to play {game}", f"{game} tutorial"],
+        "Funny moments": [game, f"{game} funny moments", f"funny {game} gameplay", f"{game} fails", f"gaming funny moments"],
+        "Horror / reactions": [game, f"{game} horror gameplay", f"{game} scary moments", f"{game} reaction", f"scary gaming"],
+        "Cinematic / story": [game, f"{game} cinematic", f"{game} story", f"{game} cutscenes", f"cinematic gameplay"],
+        "Challenge": [game, f"{game} challenge", f"{game} challenge run", f"{game} experiment", f"gaming challenge"],
+        "Competitive / ranked": [game, f"{game} ranked", f"{game} competitive gameplay", f"{game} best plays", f"{game} tips"]
+    }
+    st.text_input("Relevant tag ideas (remove anything that doesn't match)", value=", ".join(tag_templates[tag_focus]), key="tag_ideas")
+    st.caption("Tags are secondary to an accurate title, thumbnail, topic, and viewer response. Do not add unrelated trending terms.")
 
-st.divider()
-tabs = st.tabs(["🎬 Video Planner", "✂️ Editing Coach", "🎵 Music & Licensing", "🖼️ Thumbnail + SEO", "📈 Channel Fixes", "📅 Upload Planner", "🔎 Game Research"])
-
-with tabs[0]:
-    st.subheader("Your starter plan")
-    st.write(f"**Game:** {game}  ·  **Format:** {format_choice}  ·  **Style:** {style}")
-    st.write(f"**Goal:** {goal}  ·  **Audience:** {audience}  ·  **Language:** {creator_language}")
-    st.markdown("#### Video concept")
-    if style == "Cinematic":
-        concept = f"A cinematic highlight/story sequence from {game}, built around one memorable encounter, location, or turning point."
-    elif style == "Funny / entertaining":
-        concept = f"The most unexpected, funny, or chaotic moments from {game}, edited into a compact story with a clear punchline."
-    elif style == "Competitive / high-skill":
-        concept = f"A skill-focused {game} run, clutch, race, fight, or challenge where the result is easy to understand."
-    elif style == "Educational / tutorial":
-        concept = f"A beginner-friendly {game} guide that solves one specific problem and demonstrates the result."
-    elif style == "Challenge / experiment":
-        concept = f"A {game} challenge with one clear rule, escalating attempts, and a satisfying final result."
-    else:
-        concept = f"A relaxed, story-focused or exploration-led {game} episode with clear context and a consistent mood."
-    st.write(concept)
-    st.markdown("#### Hook and structure")
-    st.write("**Opening hook:** " + styles[style]["hook"])
-    st.write("**Genre-aware note:** " + genre_note(genre))
-    if format_choice in ["Shorts", "Both (Short + long video)"]:
-        st.markdown("**Shorts structure (roughly 20–45 seconds):**")
-        st.write("0–2s: strongest moment or question → 2–7s: essential context → 7–30s: payoff/escalation → final seconds: result, reaction, or a natural reason to watch another clip. Adjust length to the idea; don't pad it.")
-    if format_choice in ["Long-form video", "Both (Short + long video)"]:
-        st.markdown("**Long-form structure (adapt to the footage):**")
-        st.write("0–15s: promise + preview → early section: context and stakes → middle: meaningful progress, turns, or useful steps → final section: result/payoff → brief ending that points to a related video. Remove dead time; don't force a length.")
-    st.markdown("#### Title ideas")
-    title_templates = [
-        f"I Didn't Expect This in {game}",
-        f"The Best Moment I Captured in {game}",
-        f"{game}: One Challenge, One Rule, Can I Do It?",
-        f"{game} Tips I Wish I Knew Earlier"
-    ]
-    if style == "Cinematic": title_templates[0] = f"A Cinematic Moment in {game} That Feels Unreal"
-    if style == "Funny / entertaining": title_templates[0] = f"{game} Went Completely Wrong 😂"
-    if style == "Competitive / high-skill": title_templates[0] = f"My Cleanest {game} Play Yet"
-    if style == "Educational / tutorial": title_templates[0] = f"How to Get Better at {game}: A Simple Guide"
-    if style == "Challenge / experiment": title_templates[0] = f"I Tried a Nearly Impossible {game} Challenge"
-    if style == "Chill / story-driven": title_templates[0] = f"A Quiet, Cinematic Journey Through {game}"
-    for t in title_templates: st.write("- " + t)
-    st.caption("Treat these as drafts. Keep only claims that your actual footage proves; avoid fake urgency or misleading titles.")
-    st.markdown("#### Retention checklist")
-    for item in ["Start with the promised moment; skip long greetings and logos.", "Make the video about one main idea, not unrelated clips.", "Remove loading screens, repeated attempts, and silence unless they matter.", "Use captions or on-screen labels where context is easy to miss.", "Deliver the result promised by the title and thumbnail.", "Review audience-retention dips after publishing and use them to improve the next edit."]:
-        st.checkbox(item, key="plan_" + item)
-
-with tabs[1]:
-    st.subheader("Editing coach — mobile and PC")
-    device = st.radio("Where will you edit?", ["Mobile phone / tablet", "PC / laptop"], horizontal=True)
-    app_options = ["CapCut", "VN Video Editor", "InShot", "YouTube Create", "DaVinci Resolve", "Adobe Premiere Pro", "Other / not chosen"]
-    editor = st.selectbox("Editing app", app_options)
-    skill = st.select_slider("Editing experience", options=["Beginner", "Some experience", "Confident"])
-    source_fps = st.selectbox("Gameplay recording frame rate (if known)", ["Not sure", "30 fps", "60 fps", "120 fps"])
-    target_format = st.selectbox("Editing output", ["Vertical 9:16 (Shorts)", "Horizontal 16:9 (long-form)", "Both versions"])
+with edit_tab:
+    st.header("Editing coach — detailed workflow")
+    device = st.radio("Where will you edit?", ["Mobile phone / tablet", "PC / laptop"], horizontal=True, key="edit_device")
     if device.startswith("Mobile"):
-        st.markdown("**Mobile workflow**")
-        st.write(f"In {editor}, create a project and set the canvas to the intended format before editing. Import clips, duplicate the project before making a second format, trim dead time, arrange the story, add readable captions, then balance audio and export.")
-        st.write("If the app offers it: use 1080 × 1920 for vertical Shorts and 1920 × 1080 for horizontal videos. Export at the same frame rate as the source when practical (often 30 or 60 fps). Avoid exporting 60 fps from 30 fps footage expecting extra detail.")
-        st.write("Phone tips: keep enough free storage, close heavy apps if preview stutters, use headphones for audio checks, and watch the exported file once before uploading.")
+        editor = st.selectbox("Editing app", ["CapCut", "VN", "InShot", "YouTube Create", "Other mobile editor"], key="mobile_editor")
+        st.write(f"**Workflow for {editor}:**")
+        steps = [
+            "Create a new project and select the target aspect ratio before trimming.",
+            "Import the original gameplay recording; duplicate the project if making both vertical and horizontal versions.",
+            "Put the strongest moment first. Remove loading screens, repeated attempts, long pauses, and unrelated clips.",
+            "Arrange the clips into a clear beginning, development, and payoff. Keep enough context that viewers understand what happened.",
+            "Add captions or short labels for dialogue, tips, rules, loadouts, or locations. Check spelling and phone-safe margins.",
+            "Adjust crop/reframe for vertical video; keep the important character, action, UI, and subtitles visible.",
+            "Balance gameplay/dialogue first, music lower underneath, and sound effects only where they help. Listen with headphones.",
+            "Use transitions and effects sparingly. Add color correction only if it improves clarity and consistency.",
+            "Export, watch the entire file, check black frames/audio/captions, then upload."
+        ]
     else:
-        st.markdown("**PC workflow**")
-        st.write(f"In {editor}, create a timeline matching the intended aspect ratio and source frame rate. Organize clips, mark selects, build the story, tighten pacing, add captions/graphics, mix audio, apply restrained color correction, and export a review copy before the final render.")
-        st.write("Common starting point: 1920 × 1080 for horizontal or 1080 × 1920 for vertical; 30 or 60 fps to match source footage. Use the editor's H.264 MP4 preset and a high-quality/target-bitrate setting. Exact bitrate options vary by app and source; don't upscale low-resolution footage just to inflate the numbers.")
-    st.markdown("**Export and edit checklist**")
-    checklist = [
-        "Aspect ratio matches the upload destination (9:16 vertical or 16:9 horizontal).",
-        "Resolution matches the footage where possible; avoid unnecessary upscaling.",
-        "Frame rate matches the recording unless there is a deliberate reason to change it.",
-        "Gameplay/dialogue is clear; music does not drown out speech or important game audio.",
-        "Captions are spelled correctly and stay inside safe margins on a phone screen.",
-        "Transitions and effects support the moment instead of hiding gameplay.",
-        "Exported file plays from start to finish, with no black frames or accidental mute sections.",
-        "Thumbnail/title do not reveal story spoilers unless intended and clearly labelled."
-    ]
-    for i, item in enumerate(checklist): st.checkbox(item, key=f"editcheck_{i}")
-    st.markdown("**Simple pacing guide**")
-    if style in ["Competitive / high-skill", "Funny / entertaining"]:
-        st.write("Try tighter cuts and faster context, but leave enough frames for viewers to understand the play or joke. Cut pauses, not clarity.")
-    elif style in ["Cinematic", "Chill / story-driven"]:
-        st.write("Let important shots and story beats breathe; use fewer, more intentional transitions and preserve ambience/dialogue.")
+        editor = st.selectbox("Editing app", ["DaVinci Resolve", "Adobe Premiere Pro", "CapCut Desktop", "Other PC editor"], key="pc_editor")
+        st.write(f"**Workflow for {editor}:**")
+        steps = [
+            "Create a project, set the timeline to the intended resolution/frame rate, and organize gameplay, audio, and music tracks.",
+            "Import and review footage; mark the best moments before assembling the timeline.",
+            "Build a rough cut around one idea. Remove dead time, repetitive attempts, and clips that don't advance the story.",
+            "Refine pacing and audio continuity; use J/L cuts only where they help the story or commentary.",
+            "Add readable captions, labels, chapters, or callouts. Keep text within safe margins and avoid covering important UI.",
+            "Reframe a duplicate sequence for vertical Shorts rather than blindly cropping a horizontal master.",
+            "Balance dialogue/gameplay, music, and effects. Listen on headphones and phone speakers if possible.",
+            "Apply restrained color correction and effects; prioritize readable gameplay and stable playback.",
+            "Export a high-quality H.264 MP4 preset as a starting point, then watch the full export before uploading."
+        ]
+    for i, step in enumerate(steps, 1):
+        st.markdown(f"**Step {i}.** {step}")
+    st.subheader("Export starting points")
+    st.markdown("- **Shorts:** vertical 9:16, commonly 1080 × 1920.\n- **Long-form:** horizontal 16:9, commonly 1920 × 1080 if your source supports it.\n- **Frame rate:** normally match the source (often 30 or 60 fps); exporting 30 fps footage at 60 fps doesn't create extra captured detail.\n- **Format:** high-quality H.264 MP4 is a practical starting point. Exact options differ by app/device.")
+    st.subheader(f"Editing direction — {edit_vibe}")
+    edit_vibe_guidance = {
+        "Fast meme cuts": "Keep only setup, reaction, and payoff. Use quick punch-ins sparingly, subtitle the key joke, and avoid stacking too many sounds at once.",
+        "Cinematic slow build": "Open with a striking shot, use longer shots, subtle speed changes only where justified, restrained color grading, and music that builds into the payoff.",
+        "Horror suspense": "Preserve quiet ambience, lower music under important game sounds, cut before/after tension deliberately, and avoid spoiling the scare in the opening.",
+        "Clean tutorial": "Use numbered steps, zooms on the relevant UI, clear captions, before/after proof, and remove any step that doesn't help the viewer.",
+        "Competitive montage": "Synchronize cuts to meaningful plays, keep HUD/action visible, use speed ramps sparingly, and preserve enough lead-in to understand each play.",
+        "Story documentary": "Organize clips chronologically or by argument, use voice-over to bridge gaps, and avoid music over essential dialogue.",
+        "Cozy / relaxing": "Use gentle cuts, preserve ambient sound, keep music quiet, and avoid unnecessary overlays or sudden volume jumps.",
+        "High-energy Shorts": "Show the payoff immediately, use readable captions, reframe to vertical safely, and keep each beat moving toward one clear outcome.",
+        "Minimal raw gameplay": "Trim dead time, keep authentic game audio, add only essential labels, and avoid effects that make the gameplay harder to read."
+    }
+    st.write(edit_vibe_guidance[edit_vibe])
+    st.write("**Style baseline:** " + selected_style["edit"])
+    st.subheader("Editing timeline")
+    if "Shorts" in video_format:
+        timeline = ["0–2 s: show the strongest moment or question; no logo intro.", "2–6 s: add only the context needed to understand the moment.", "6–20 s: develop the action, joke, tip, or tension; remove pauses.", "20 s to payoff: deliver the result and end cleanly; use only the length the idea needs."]
     else:
-        st.write("Use a clear step-by-step progression and remove repetition while keeping enough context to follow each step.")
-    st.caption("Export controls and exact bitrate labels differ between apps and device versions; use the app's high-quality H.264 MP4 preset as a starting point.")
+        timeline = ["Opening: show the promised outcome or an intriguing moment before greetings.", "Setup: explain the goal, rules, or question in a few sentences.", "Middle: build 3–5 distinct beats; cut repetition and label useful context.", "Payoff: show the actual outcome and explain what it means.", "Ending: brief conclusion and a relevant next-video invitation, if natural."]
+    for i, beat in enumerate(timeline, 1):
+        st.markdown(f"**Timeline {i}.** {beat}")
+    st.checkbox("Aspect ratio and resolution checked", key="check_aspect")
+    st.checkbox("Frame rate matches source where practical", key="check_fps")
+    st.checkbox("Gameplay/dialogue is clear and music doesn't drown it out", key="check_audio")
+    st.checkbox("Captions and export checked from start to finish", key="check_export")
 
-with tabs[2]:
-    st.subheader("Music mood and licensing check")
-    st.write(f"**Suggested direction for {style.lower()} {game} video:** {styles[style]['music']}")
-    st.write("**Search keywords for YouTube Audio Library:** " + styles[style]["keywords"])
-    st.link_button("Open YouTube Audio Library", "https://youtube.com/audiolibrary")
-    st.link_button("Read YouTube's official Audio Library licensing guidance", "https://support.google.com/youtube/answer/3376882?hl=en-GB")
-    st.markdown("#### Before you use a track")
-    music_checks = [
-        "I found the track in YouTube Studio's Audio Library or have a clear licence/permission for this use.",
-        "I checked the specific track's terms for monetization, platform, territory, and any other restrictions.",
-        "If attribution is required, I copied the exact attribution text and added it to the description.",
-        "I did not assume that a track is safe just because a video or website calls it 'no copyright' or 'royalty-free'.",
-        "I checked whether the track is suitable for this video's length and format; Shorts music permissions may differ from long-form use."
-    ]
-    for i, item in enumerate(music_checks): st.checkbox(item, key=f"music_{i}")
-    st.warning("This is a checklist, not a live track-by-track licence verification. YouTube says Audio Library tracks are its known copyright-safe source; third-party 'royalty-free' labels alone are not a guarantee. See the official guidance above.")
+with music_tab:
+    st.header(f"Music mood and licensing for {game}")
+    music_catalog = {
+        "Cinematic orchestral": ("orchestral build, cinematic tension, epic instrumental, strings, trailer percussion", "Use a gradual build; let the strongest visual land with the musical rise."),
+        "Funny / quirky": ("playful pizzicato, quirky percussion, light funk, comedic instrumental, cartoon pluck", "Use short accents around the joke; keep them lower than dialogue and game audio."),
+        "Dark horror ambience": ("dark ambient drone, suspense texture, eerie piano, tension pulse, horror atmosphere", "Leave quiet gaps so footsteps, warnings, and game ambience remain audible."),
+        "High-energy electronic": ("high energy electronic, driving beat, synth bass, action instrumental", "Match beat changes to meaningful gameplay moments, not every cut."),
+        "Emotional piano": ("emotional piano, reflective instrumental, gentle strings, melancholic ambient", "Use softer music under story scenes and avoid masking dialogue."),
+        "Chill lo-fi": ("lo-fi instrumental, mellow beat, warm ambient, relaxed background music", "Keep the beat steady and low so gameplay remains the focus."),
+        "Epic action percussion": ("epic percussion, cinematic drums, action rhythm, energetic instrumental", "Use the biggest hits for actual stakes or payoff; avoid constant loudness."),
+        "No music / game audio only": ("no music, original game audio, ambience, gameplay sound", "Prioritize clean game audio and voice; check the game's own music/copyright settings.")
+    }
+    music_terms, music_edit_tip = music_catalog[music_mood]
+    st.write(f"**Chosen music category:** {music_mood}")
+    st.write(f"**Direction for {style.lower()} gameplay:** {selected_style['music']}")
+    st.write("**Search keywords for YouTube Audio Library:** " + music_terms)
+    st.write("**Mixing tip:** " + music_edit_tip)
+    st.write("**Additional style keywords:** " + selected_style["keywords"])
+    st.markdown("[Open YouTube Audio Library](https://youtube.com/audiolibrary)")
+    st.markdown("[Read YouTube's official Audio Library guidance](https://support.google.com/youtube/answer/3376882)")
+    st.warning("This app recommends music moods and search terms; it does not select or verify an individual track. Check that specific track's licence, commercial/monetization terms, platform use, and attribution requirements. YouTube Audio Library is the safer starting point; third-party ‘no copyright’ labels alone are not proof of permission.")
+    st.subheader("Before using a track")
+    st.checkbox("I found the track in YouTube Audio Library or have clear permission", key="music_permission")
+    st.checkbox("I checked this track's exact terms for monetization and use", key="music_terms")
+    st.checkbox("I copied required attribution exactly into the description", key="music_credit")
+    st.checkbox("I confirmed the track suits this video format and length", key="music_format")
 
-with tabs[3]:
-    st.subheader("Thumbnail, title, description and tags")
-    st.write("**Thumbnail direction:** " + styles[style]["thumb"])
-    st.write("Aim for one main subject, strong contrast, uncluttered composition, and text readable at small phone size. Check that the thumbnail accurately represents the actual video.")
-    uploaded_image = st.file_uploader("Optional: upload a thumbnail screenshot for your own reference", type=["png", "jpg", "jpeg", "webp"])
-    if uploaded_image is not None:
-        st.image(uploaded_image, caption="Uploaded reference image", use_container_width=True)
-        st.info("This version can display your image, but it does not automatically understand or diagnose the image. Use the manual checks below for feedback.")
-    issue = st.selectbox("What do you want to improve?", ["Thumbnail looks cluttered", "Text hard to read", "Low CTR", "Title unclear", "Not sure"])
-    if issue == "Thumbnail looks cluttered": st.write("Try removing secondary subjects and reducing text to one short phrase. Zoom out to phone size and check whether the main idea is still obvious.")
-    elif issue == "Text hard to read": st.write("Use fewer words, larger type, strong contrast, and safe margins. Avoid thin fonts over busy backgrounds.")
-    elif issue == "Low CTR": st.write("Compare the promise in title and thumbnail with the actual opening. Test one meaningful change at a time after enough impressions; CTR varies by traffic source and audience.")
-    elif issue == "Title unclear": st.write("Name the game or topic and the specific payoff, challenge, or question. Avoid vague titles that could describe thousands of videos.")
-    else: st.write("Ask someone to glance at the thumbnail for two seconds, then say what they expect the video to show. If their answer is wrong, simplify the visual promise.")
-    st.markdown("**Description template**")
-    description = f"In this video, I play {game} in a {style.lower()} style.\n\nWhat happens: [brief, accurate summary]\n\n🎮 Game: {game}\n🎬 Format: {format_choice}\n\n[Add your own channel links, chapters, and any required music attribution here.]"
-    st.text_area("Copy and customize this description", value=description, height=170)
-    st.markdown("**Tag ideas (use only relevant tags)**")
-    tags = [game, game + " gameplay", game + " highlights", game + " tips", "PS5 gameplay", "gaming", style.lower() + " gaming"]
-    st.code(", ".join(tags), language=None)
-    st.caption("Tags have a limited discovery role compared with the video's actual topic, title, thumbnail, and viewer response. Don't add unrelated trending tags.")
+with research_tab:
+    st.header(f"Research: {game}")
+    st.success(f"All search links below are generated from your current game name: **{game}**")
+    st.write("These buttons open external search pages. Review dates, platforms, editions, sources, and results yourself; this app does not automatically read or verify the pages.")
+    st.link_button(f"Search YouTube for {game} videos", youtube_search, use_container_width=True)
+    st.link_button(f"Search the web for {game} tips and news", web_search, use_container_width=True)
+    st.link_button(f"Find official {game} / publisher information", official_search, use_container_width=True)
+    st.link_button(f"Research trends related to {game}", trend_search, use_container_width=True)
+    st.subheader("Research questions")
+    st.markdown(f"- What are viewers asking about **{game}** right now?\n- Which recent videos about **{game}** are getting discussion, and what is genuinely different about them?\n- Are updates, releases, modes, or platform versions current?\n- Can you make an original video based on your own gameplay rather than copying another creator?")
+    custom_query = st.text_input("Add a specific research question", placeholder=f"e.g. best beginner settings for {game}", key="research_question")
+    if custom_query.strip():
+        st.link_button("Search this question", search_url("https://www.google.com/search?q=", f"{game} {custom_query.strip()}"), use_container_width=True)
 
-with tabs[4]:
-    st.subheader("Channel troubleshooting")
-    problem = st.selectbox("What is happening?", [
-        "Almost zero views", "Impressions but low CTR", "People leave early / low retention",
-        "Copyright claim", "Limited ads / monetization concern", "Video stuck processing or not visible",
-        "Not gaining subscribers", "I am not sure"
-    ])
-    if problem == "Almost zero views":
-        advice = ["Check that the video is Public and processing is complete.", "Confirm the title clearly names the actual topic/game and the opening delivers that promise.", "Give a new upload time to gather data; don't repeatedly delete and re-upload without a reason.", "Check impressions, traffic sources, and restrictions in YouTube Studio before changing everything."]
-    elif problem == "Impressions but low CTR":
-        advice = ["Check whether the thumbnail is readable at phone size and the title gives a specific reason to click.", "Compare CTR by traffic source and impressions; numbers vary by audience and surface.", "Change one meaningful element at a time and avoid misleading promises."]
-    elif problem == "People leave early / low retention":
-        advice = ["Open on the payoff, problem, or strongest moment instead of a long intro.", "Use the retention graph to locate drop-offs, then check what happens at those timestamps.", "Remove repeated footage and deliver the title's promise earlier."]
-    elif problem == "Copyright claim":
-        advice = ["Open YouTube Studio > Content > Restrictions/Copyright details to identify the claimed material.", "Check the claimant, timestamps, and the actual licence before disputing.", "If appropriate, replace/mute/trim the claimed segment using available Studio tools; do not dispute unless you have a valid basis.", "Giving credit or writing 'no copyright intended' does not by itself grant permission."]
-    elif problem == "Limited ads / monetization concern":
-        advice = ["Review the exact notice in YouTube Studio and the current monetization policies.", "Check for reused content, third-party assets, graphic content, or metadata that may be relevant to the notice.", "The app cannot determine eligibility or overturn a decision; use the official appeal/review flow if available."]
-    elif problem == "Video stuck processing or not visible":
-        advice = ["Check YouTube Studio for processing status, restrictions, visibility, and any error message.", "Verify the exported file plays locally and is in a supported format such as MP4/H.264.", "If processing remains stuck, consult YouTube Help for the current status and error-specific steps."]
-    elif problem == "Not gaining subscribers":
-        advice = ["Build a repeatable series so viewers know what to expect next.", "Make the channel's topic and value clear; invite a subscription naturally after delivering value.", "Review which videos bring returning viewers and create related follow-ups."]
-    else:
-        advice = ["Open YouTube Studio and identify the first measurable symptom: impressions, CTR, retention, restrictions, or returning viewers.", "Change one variable at a time and write down what you changed and when.", "Use the official help links below for account-specific notices."]
-    for item in advice: st.markdown(f"- {item}")
-    st.link_button("Open YouTube Studio", "https://studio.youtube.com/")
-    st.link_button("YouTube Help: copyright and music", "https://support.google.com/youtube/topic/2676339")
-    st.link_button("YouTube monetization policies", "https://support.google.com/youtube/answer/1311392")
+with discovery_tab:
+    st.header("Audience & Game Finder")
+    st.write("Use this to shortlist games that fit your audience, platform, category, and spending limit. It uses searches and the information you provide; it does not automatically retrieve live trends or comments.")
+    col1, col2 = st.columns(2)
+    with col1:
+        finder_platform = st.selectbox("Platform you can play on", PLATFORMS, key="finder_platform")
+        finder_category = st.selectbox("Category to explore", ["Any category"] + GENRES[1:], key="finder_category")
+        budget = st.selectbox("Maximum game budget", ["Free-to-play only", "₹500", "₹1,000", "₹2,000", "₹5,000", "No fixed budget"], key="finder_budget")
+    with col2:
+        pc_cpu = st.text_input("PC CPU (PC only)", placeholder="e.g. Intel Core i5-7500", key="pc_cpu")
+        pc_gpu = st.text_input("PC GPU (PC only)", placeholder="e.g. Intel HD Graphics 630", key="pc_gpu")
+        pc_ram = st.selectbox("PC RAM (PC only)", ["Not applicable / unsure", "4 GB", "8 GB", "16 GB", "32 GB or more"], key="pc_ram")
+    audience_notes = st.text_area("Audience clues (optional)", placeholder="What do viewers ask for? What are your top videos about?", key="audience_notes")
+    comment_text = st.text_area("Paste viewer comments (optional)", placeholder="Paste comments you are allowed to use. Remove personal details.", key="comment_text")
+    if st.button("Build game discovery searches", type="primary", key="discover_games"):
+        cat = "" if finder_category == "Any category" else finder_category
+        queries = [
+            f"best trending {cat} games {finder_platform} {date.today().year}",
+            f"new and upcoming {cat} games {finder_platform} {date.today().year}",
+            f"popular {cat} games on YouTube {finder_platform} {date.today().year}"
+        ]
+        if budget != "No fixed budget":
+            queries = [q + (" free" if budget == "Free-to-play only" else f" under {budget}") for q in queries]
+        if finder_platform == "PC / laptop" and pc_gpu.strip():
+            queries.append(f"games playable on {pc_gpu} {pc_cpu} {pc_ram} RAM minimum requirements")
+        st.subheader("Three research routes")
+        for i, q in enumerate(queries[:3], 1):
+            st.markdown(f"**Research route {i}:** {q}")
+            st.link_button(f"Open search {i}", search_url("https://www.google.com/search?q=", q), key=f"discover_link_{i}")
+        st.caption("Compare at least two sources, confirm the exact platform/edition and current price, and don't treat search ranking alone as proof that a game is trending.")
+        if finder_platform == "PC / laptop":
+            st.info("PC compatibility requires checking the exact CPU, GPU, RAM, OS, storage, and the game's minimum/recommended requirements. Search results are not a benchmark; frame rate cannot be guaranteed from these fields alone.")
+        if audience_notes.strip() or comment_text.strip():
+            st.subheader("Audience clues you supplied")
+            combined = (audience_notes + " " + comment_text).lower()
+            # Lightweight keyword counts, clearly labelled as simple text clues rather than AI sentiment.
+            terms = ["game", "story", "horror", "racing", "multiplayer", "tutorial", "tips", "challenge", "minecraft", "call of duty", "gta", "fortnite", "price", "free"]
+            found = [(term, combined.count(term)) for term in terms if combined.count(term) > 0]
+            if found:
+                st.write("Repeated keyword clues: " + ", ".join(f"{term} ({count})" for term, count in sorted(found, key=lambda x: x[1], reverse=True)))
+            else:
+                st.write("No keywords from the simple built-in list were detected. Review the comments manually for requests and questions.")
+            st.caption("This is basic keyword counting, not sentiment analysis, demographic analysis, or a direct connection to YouTube comments.")
 
-with tabs[5]:
-    st.subheader("Simple upload planner")
-    planned_date = st.date_input("Planned upload date", value=date.today())
-    planned_time = st.selectbox("Preferred time (your local time)", ["Morning", "Afternoon", "Evening", "No preference"])
-    cadence = st.selectbox("Realistic posting cadence", ["One video a week", "Two videos a week", "Three Shorts a week", "One Short + one long video a week", "Flexible / when ready"])
-    st.write(f"**Plan:** {cadence}; target date **{planned_date.strftime('%d %b %Y')}**; preferred time **{planned_time}**.")
-    st.write("Use your YouTube Studio audience data when available. There is no universal best upload time, and a consistent sustainable schedule is more useful than burning out.")
-    for i, item in enumerate(["Recording captured and backed up", "Edit and export reviewed", "Title and thumbnail accurately match the video", "Description, chapters, and relevant tags prepared", "Music permissions/attribution checked", "Visibility, audience setting, and restrictions checked after upload"]):
-        st.checkbox(item, key=f"upload_{i}")
-
-with tabs[6]:
-    st.subheader("Research this game when details matter")
-    st.write("Your plan above is available immediately. This research section opens search pages so you can check current, game-specific details; this starter app does not automatically fetch or verify those pages for you.")
-    query = st.text_input("Research question", value=f"{game} PS5 gameplay ideas tips latest updates")
-    st.link_button("Search the web for this game", "https://www.google.com/search?q=" + quote_plus(query))
-    st.link_button("Search YouTube for videos about this game", "https://www.youtube.com/results?search_query=" + quote_plus(game + " PS5 gameplay"))
-    st.link_button("Search official game / publisher information", "https://www.google.com/search?q=" + quote_plus(game + " official website news"))
-    st.markdown("**Research checklist**")
-    for i, item in enumerate(["Check publication date and platform/version before using a tip.", "Prefer official publisher/game sources for release dates and patch notes.", "Confirm a claim in more than one reliable source when it matters.", "Do not copy another creator's script, thumbnail, or footage; use research to inform your own original video."]):
-        st.checkbox(item, key=f"research_{i}")
+with publish_tab:
+    st.header("Publishing plan & what to measure")
+    upload_date = st.date_input("Planned upload date", value=date.today() + timedelta(days=1), key="upload_date")
+    time_window = st.selectbox("Posting window to test (local time)", ["Morning", "Afternoon", "Evening", "Late evening"], index=2, key="posting_window")
+    cadence = st.selectbox("Sustainable cadence", ["One video a week", "Two videos a week", "Three Shorts a week", "One Short + one long video a week", "Flexible / learning first"], key="cadence")
+    st.write(f"**Plan:** {cadence}; target date **{upload_date.strftime('%d %b %Y')}**; test the **{time_window.lower()}** window.")
+    st.warning("There is no universal best posting time. Treat this as a test window, then use YouTube Studio → Analytics → Audience and your own performance data to adjust. This app cannot see your audience activity automatically.")
+    st.subheader("After publishing, review")
+    st.markdown("- **Reach:** impressions and traffic sources.\n- **Packaging:** click-through rate (CTR), compared with your own channel's usual results and traffic source.\n- **Retention:** first 30 seconds for long-form, and viewed-versus-swiped-away/retention for Shorts where available.\n- **Engagement:** meaningful comments, likes, shares, and returning viewers.\n- **Next experiment:** change one thing at a time—hook, topic, thumbnail/title, or pacing.")
+    st.markdown("[Open YouTube Studio](https://studio.youtube.com/)")
+    st.checkbox("Recording backed up and edit/export checked", key="pub_backup")
+    st.checkbox("Title and thumbnail accurately match the video", key="pub_title")
+    st.checkbox("Description, relevant tags, and music permissions checked", key="pub_description")
+    st.checkbox("Visibility, audience setting, and restrictions checked after upload", key="pub_visibility")
 
 st.divider()
-st.caption("PS5 YouTube Coach • Free planning assistant • No account sign-in, automatic channel audit, automatic upload/scheduling, live AI image analysis, or guaranteed growth in this version.")
+st.caption("PS5 YouTube Coach • Free planning starter • No automatic YouTube account access, live trend verification, licence verification, upload scheduling, or guaranteed growth in this version.")
+import streamlit as st
+from urllib.parse import quote_plus
+from datetime import date, timedelta
+
+st.set_page_config(page_title="PS5 YouTube Coach", page_icon="🎮", layout="wide")
+
+# PS5 YouTube Coach — rebuilt around one shared game value so every section
+# (plan, scripts, research, music, SEO and discovery) follows the user's input.
+
+PRESETS = [
+    "Ghost of Tsushima", "Grand Theft Auto V", "Grand Theft Auto VI", "Call of Duty",
+    "Call of Duty: Modern Warfare", "Minecraft", "Forza Horizon 5", "Forza Horizon 6",
+    "The Last of Us Part I", "The Last of Us Part II", "God of War (2018)",
+    "God of War Ragnarök", "Fortnite", "Valorant", "EA SPORTS FC", "Other / future game"
+]
+GENRES = ["Auto / not sure", "Action-adventure", "Open world", "FPS / shooter", "RPG",
+          "Racing", "Survival / horror", "Sandbox / building", "Sports", "Fighting",
+          "Strategy", "Simulation", "Indie / casual", "Story-driven", "Other"]
+STYLES = ["Cinematic", "Funny / entertaining", "Competitive / high-skill", "Educational / tutorial",
+          "Challenge / experiment", "Chill / story-driven"]
+FORMATS = ["Shorts (vertical)", "Long-form (horizontal)", "Both: Shorts + long-form"]
+GOALS = ["More views / discovery", "Improve click-through rate (CTR)", "Improve retention / watch time",
+         "Gain subscribers / community", "Monetize safely", "Post consistently / improve skills"]
+PLATFORMS = ["PlayStation 5", "Xbox Series X/S", "PC / laptop", "Nintendo Switch", "Mobile"]
+
+st.title("🎮 PS5 YouTube Coach")
+st.caption("A rebuilt, game-agnostic planning assistant for gaming creators.")
+st.info("This version generates detailed plans from templates and creates search links. It does not automatically read YouTube analytics/comments or verify live trends, prices, game facts, music licences, or frame rates. Check linked sources before relying on current information.")
+
+with st.sidebar:
+    st.header("1. Your game")
+    preset = st.selectbox("Quick-select a game", PRESETS, index=0, key="preset_game")
+    game_input = st.text_input("Custom game name (optional; overrides preset)", placeholder="e.g. Call of Duty: Modern Warfare 4", key="game_name_input")
+    # Single canonical game variable; custom input overrides the preset, and every section uses it.
+    game = game_input.strip() or ("your selected game" if preset == "Other / future game" else preset)
+    genre = st.selectbox("Game category / genre", GENRES, key="genre")
+    platform = st.selectbox("Your gaming platform", PLATFORMS, key="platform")
+    st.header("2. Your video")
+    video_format = st.selectbox("Format", FORMATS, key="video_format")
+    style = st.selectbox("Video style", STYLES, key="video_style")
+    goal = st.selectbox("Main goal", GOALS, key="goal")
+    language = st.selectbox("Video language", ["English", "Hindi", "Gujarati", "Hinglish", "Other / no dialogue"], key="language")
+    audience = st.selectbox("Intended audience", ["General gaming audience", "Beginners", "Fans of this game", "Competitive players", "Story / lore fans", "Casual viewers"], key="audience")
+    st.header("3. Creative categories")
+    script_angle = st.selectbox("Script / story angle", ["Funny moments", "Scary / suspense", "Cinematic story", "Beginner guide", "Challenge / experiment", "Competitive highlights", "Secrets / discoveries", "Honest review", "Relaxing gameplay", "Reaction / commentary"], key="script_angle")
+    edit_vibe = st.selectbox("Editing style", ["Fast meme cuts", "Cinematic slow build", "Horror suspense", "Clean tutorial", "Competitive montage", "Story documentary", "Cozy / relaxing", "High-energy Shorts", "Minimal raw gameplay"], key="edit_vibe")
+    music_mood = st.selectbox("Music mood", ["Cinematic orchestral", "Funny / quirky", "Dark horror ambience", "High-energy electronic", "Emotional piano", "Chill lo-fi", "Epic action percussion", "No music / game audio only"], key="music_mood")
+    title_style = st.selectbox("Title style", ["Curiosity", "Funny", "Scary", "Cinematic", "Tutorial / searchable", "Challenge", "Review / opinion"], key="title_style")
+    description_tone = st.selectbox("Description tone", ["Friendly creator", "Cinematic / story", "Helpful tutorial", "Funny / casual", "Competitive / direct"], key="description_tone")
+    tag_focus = st.selectbox("Tag strategy", ["Game + gameplay", "Tutorial / tips", "Funny moments", "Horror / reactions", "Cinematic / story", "Challenge", "Competitive / ranked"], key="tag_focus")
+    st.caption("Tip: choose ‘Keep my typed game’ and enter any game name, or select a preset to fill it in. Check the game name displayed below the inputs.")
+
+# One canonical URL builder: every search query is derived from the same game value.
+def search_url(base, query):
+    return base + quote_plus(query)
+
+web_search = search_url("https://www.google.com/search?q=", f"{game} {genre if genre != 'Auto / not sure' else ''} gameplay tips latest news")
+youtube_search = search_url("https://www.youtube.com/results?search_query=", f"{game} {style} gameplay")
+official_search = search_url("https://www.google.com/search?q=", f"{game} official website publisher news patch notes")
+trend_search = search_url("https://www.google.com/search?q=", f"gaming trends {game} YouTube videos {date.today().year}")
+
+style_data = {
+    "Cinematic": {
+        "hook": "Open on the strongest visual, dramatic reveal, close call, or beautiful shot. Put context after the hook; skip a long intro.",
+        "music": "Cinematic orchestral, emotional piano, atmospheric strings, or restrained tension build.",
+        "keywords": "cinematic, orchestral, emotional piano, atmospheric, tension build, epic instrumental",
+        "edit": "Use intentional cuts, let important shots breathe, add only a few motivated slow-motion moments, and preserve ambience and dialogue."
+    },
+    "Funny / entertaining": {
+        "hook": "Start with the funniest fail, unexpected event, or reaction; explain only the context viewers need.",
+        "music": "Playful pizzicato, quirky percussion, light funk, or short comedic stings.",
+        "keywords": "comedy, playful, quirky, pizzicato, light funk, comedic instrumental",
+        "edit": "Trim pauses, time cuts around the punchline, keep reactions clear, use occasional punch-in zooms/captions, and avoid sound-effect overload."
+    },
+    "Competitive / high-skill": {
+        "hook": "Show the clutch, cleanest play, rank, or result immediately; quickly explain the stakes.",
+        "music": "Driving electronic beats, energetic percussion, dark synth, or restrained action rock.",
+        "keywords": "high energy, electronic, driving percussion, dark synth, action instrumental, intense",
+        "edit": "Keep action readable, cut downtime, preserve key gameplay sounds, briefly label loadouts/strategies, and avoid effects that hide the play."
+    },
+    "Educational / tutorial": {
+        "hook": "Show the problem and promised result first, then teach one clear method.",
+        "music": "Low-volume neutral electronic, light lo-fi, or unobtrusive ambient instrumental.",
+        "keywords": "minimal electronic, light lo-fi, calm background, tutorial, unobtrusive instrumental",
+        "edit": "Use numbered steps, zooms only where needed, readable captions, before/after examples, and pauses long enough for viewers to follow."
+    },
+    "Challenge / experiment": {
+        "hook": "State the rule and stakes in one sentence, then show a quick preview of the attempt.",
+        "music": "Building percussion, playful suspense, or energetic electronic instrumental.",
+        "keywords": "building tension, energetic electronic, suspense instrumental, challenge, percussion",
+        "edit": "Show the rules on screen, remove repetitive attempts, keep meaningful failures, add progress markers, and make the final outcome clear."
+    },
+    "Chill / story-driven": {
+        "hook": "Begin with a compelling story beat, discovery, atmosphere, or question without spoiling more than intended.",
+        "music": "Ambient piano, gentle strings, atmospheric pads, or soft instrumental textures.",
+        "keywords": "ambient piano, atmospheric, gentle strings, emotional instrumental, exploration",
+        "edit": "Use longer shots when atmosphere matters, preserve dialogue, add subtle captions when useful, and avoid unnecessary transitions."
+    }
+}
+selected_style = style_data[style]
+
+# Dynamic content generated on each Streamlit rerun from the current input.
+st.subheader("Current project")
+st.markdown(f"**Game:** {game}  ·  **Platform:** {platform}  ·  **Category:** {genre}  ·  **Format:** {video_format}")
+st.markdown(f"**Style:** {style}  ·  **Goal:** {goal}  ·  **Audience:** {audience}  ·  **Language:** {language}  ·  **Script angle:** {script_angle}")
+st.caption(f"Creative direction: editing = {edit_vibe} · music = {music_mood} · title = {title_style} · description = {description_tone} · tags = {tag_focus}")
+
+plan_tab, edit_tab, music_tab, research_tab, discovery_tab, publish_tab = st.tabs([
+    "🎬 Video plan & script", "✂️ Editing step-by-step", "🎵 Music & licensing",
+    "🔎 Game research", "🧭 Audience & game finder", "📅 Publish & measure"
+])
+
+with plan_tab:
+    st.header(f"Video plan for {game}")
+    st.write(f"**Concept:** Make a {style.lower()} video about one specific moment, question, challenge, discovery, or result in **{game}**. Avoid a generic montage unless the clips have a clear theme.")
+    st.write("**Opening hook:** " + selected_style["hook"])
+    if "Shorts" in video_format:
+        st.subheader("Shorts structure (adapt to the idea; don't pad it)")
+        st.markdown("- **0–2 seconds:** strongest moment or clear question.\n- **2–6 seconds:** minimum context viewers need.\n- **6–25 seconds:** action, explanation, escalation, or payoff.\n- **Final seconds:** result/reaction and a natural next-video prompt if relevant.")
+    if "Long-form" in video_format or "Both" in video_format:
+        st.subheader("Long-form structure")
+        st.markdown("- **0:00–0:15:** cold open showing the promise of the video.\n- **0:15–0:45:** explain the goal, challenge, or question.\n- **Main section:** progress through 3–5 clear beats; remove repetitive dead time.\n- **Payoff:** show the result and what changed.\n- **Ending:** concise conclusion and relevant next-video suggestion; avoid a long outro.")
+    angle_prompts = {
+        "Funny moments": "Set up the situation quickly, leave room for the reaction, and land the punchline without over-explaining.",
+        "Scary / suspense": "Build a question or threat, preserve important quiet audio, and delay the reveal until the footage earns it.",
+        "Cinematic story": "Use a visual opening, establish the emotional or story context, and let key shots breathe.",
+        "Beginner guide": "State the problem and result first, then explain each step in plain language.",
+        "Challenge / experiment": "State the rule, stakes, and success condition before showing attempts.",
+        "Competitive highlights": "Show the high-skill moment first, then explain the stakes and key decision.",
+        "Secrets / discoveries": "Present a specific question, show how you tested it, and distinguish confirmed facts from guesses.",
+        "Honest review": "Explain what you tested, what worked, what did not, and who may enjoy it.",
+        "Relaxing gameplay": "Keep the pacing calm, preserve ambience, and avoid loud edits that break the mood.",
+        "Reaction / commentary": "Use your genuine reaction and add context that makes the moment understandable to a new viewer."
+    }
+    st.subheader(f"Script starter — {script_angle}")
+    st.write("**Direction:** " + angle_prompts[script_angle])
+    script = f"""[HOOK — {script_angle}: show the strongest real moment from {game}]\n\nVOICE / CAPTION: “Today in {game}, I'm trying to [specific goal or question].”\n\n[CONTEXT] Explain the rule, mission, location, build, or problem in one or two sentences.\n\n[BEAT 1] Show the first meaningful attempt or discovery. Add a caption only if it improves understanding.\n\n[BEAT 2] Show escalation, a useful tip, a mistake, or a surprising turn.\n\n[PAYOFF] Show the actual result. Don't claim a win, secret, record, or discovery unless the footage proves it.\n\n[ENDING] “Would you try this in {game}? What should I test next?” (Use only if it fits your audience.)"""
+    st.text_area("Copy and customize this script", value=script, height=300, key="script_output")
+    st.subheader("Title ideas")
+    title_templates = {
+        "Curiosity": [f"I Didn't Expect This in {game}", f"What Happens If You Try This in {game}?", f"The Detail I Nearly Missed in {game}"],
+        "Funny": [f"{game} Went Completely Wrong", f"My Funniest {game} Moment Yet", f"I Thought This Would Work in {game}"],
+        "Scary": [f"The Creepiest Moment I Found in {game}", f"I Was Not Ready for This in {game}", f"Playing {game} With the Lights Off"],
+        "Cinematic": [f"A Cinematic Moment in {game}", f"{game} Looks Unreal in This Scene", f"A Quiet, Beautiful Moment in {game}"],
+        "Tutorial / searchable": [f"{game}: Beginner Tips to Know First", f"How to Improve at {game}", f"{game} Guide: A Simple Way to Start"],
+        "Challenge": [f"Can I Beat This Challenge in {game}?", f"I Tried {game} With One Rule", f"Can This Strategy Work in {game}?"],
+        "Review / opinion": [f"Is {game} Worth Playing? My Honest Take", f"What {game} Does Well — and What It Doesn't", f"Who Should Play {game}?"]
+    }
+    title_ideas = title_templates[title_style]
+    for t in title_ideas:
+        st.markdown(f"- {t}")
+    st.caption("Treat titles as drafts. Keep only claims your actual footage proves; don't use fake urgency or misleading promises.")
+    st.subheader(f"Description and tags — {description_tone} / {tag_focus}")
+    tone_openers = {
+        "Friendly creator": f"Hey everyone! In this video, we're playing {game} and exploring the moment shown in the footage.",
+        "Cinematic / story": f"A cinematic gameplay moment from {game}, focused on atmosphere, story, and the scene itself.",
+        "Helpful tutorial": f"This video covers a practical {game} tip. Check the steps below and adapt them to your version of the game.",
+        "Funny / casual": f"Things did not go exactly to plan in {game}. Here's the moment and how it played out.",
+        "Competitive / direct": f"A focused {game} gameplay session highlighting decisions, mechanics, and the final result."
+    }
+    description = f"{tone_openers[description_tone]}\n\nWhat happens: [write a short, accurate summary of this actual video].\n\nPlatform: {platform}\nGame: {game}\nFormat: {video_format}\nStyle: {style}\n\nMusic: [add track credit here if required by the licence].\n\nSubscribe or comment with a relevant suggestion if you want to see more."
+    st.text_area("Description template (customize before uploading)", value=description, height=180, key="description_template")
+    tag_templates = {
+        "Game + gameplay": [game, f"{game} gameplay", f"{game} {platform}", f"{game} walkthrough", f"{game} highlights"],
+        "Tutorial / tips": [game, f"{game} tips", f"{game} beginner guide", f"how to play {game}", f"{game} tutorial"],
+        "Funny moments": [game, f"{game} funny moments", f"funny {game} gameplay", f"{game} fails", f"gaming funny moments"],
+        "Horror / reactions": [game, f"{game} horror gameplay", f"{game} scary moments", f"{game} reaction", f"scary gaming"],
+        "Cinematic / story": [game, f"{game} cinematic", f"{game} story", f"{game} cutscenes", f"cinematic gameplay"],
+        "Challenge": [game, f"{game} challenge", f"{game} challenge run", f"{game} experiment", f"gaming challenge"],
+        "Competitive / ranked": [game, f"{game} ranked", f"{game} competitive gameplay", f"{game} best plays", f"{game} tips"]
+    }
+    st.text_input("Relevant tag ideas (remove anything that doesn't match)", value=", ".join(tag_templates[tag_focus]), key="tag_ideas")
+    st.caption("Tags are secondary to an accurate title, thumbnail, topic, and viewer response. Do not add unrelated trending terms.")
+
+with edit_tab:
+    st.header("Editing coach — detailed workflow")
+    device = st.radio("Where will you edit?", ["Mobile phone / tablet", "PC / laptop"], horizontal=True, key="edit_device")
+    if device.startswith("Mobile"):
+        editor = st.selectbox("Editing app", ["CapCut", "VN", "InShot", "YouTube Create", "Other mobile editor"], key="mobile_editor")
+        st.write(f"**Workflow for {editor}:**")
+        steps = [
+            "Create a new project and select the target aspect ratio before trimming.",
+            "Import the original gameplay recording; duplicate the project if making both vertical and horizontal versions.",
+            "Put the strongest moment first. Remove loading screens, repeated attempts, long pauses, and unrelated clips.",
+            "Arrange the clips into a clear beginning, development, and payoff. Keep enough context that viewers understand what happened.",
+            "Add captions or short labels for dialogue, tips, rules, loadouts, or locations. Check spelling and phone-safe margins.",
+            "Adjust crop/reframe for vertical video; keep the important character, action, UI, and subtitles visible.",
+            "Balance gameplay/dialogue first, music lower underneath, and sound effects only where they help. Listen with headphones.",
+            "Use transitions and effects sparingly. Add color correction only if it improves clarity and consistency.",
+            "Export, watch the entire file, check black frames/audio/captions, then upload."
+        ]
+    else:
+        editor = st.selectbox("Editing app", ["DaVinci Resolve", "Adobe Premiere Pro", "CapCut Desktop", "Other PC editor"], key="pc_editor")
+        st.write(f"**Workflow for {editor}:**")
+        steps = [
+            "Create a project, set the timeline to the intended resolution/frame rate, and organize gameplay, audio, and music tracks.",
+            "Import and review footage; mark the best moments before assembling the timeline.",
+            "Build a rough cut around one idea. Remove dead time, repetitive attempts, and clips that don't advance the story.",
+            "Refine pacing and audio continuity; use J/L cuts only where they help the story or commentary.",
+            "Add readable captions, labels, chapters, or callouts. Keep text within safe margins and avoid covering important UI.",
+            "Reframe a duplicate sequence for vertical Shorts rather than blindly cropping a horizontal master.",
+            "Balance dialogue/gameplay, music, and effects. Listen on headphones and phone speakers if possible.",
+            "Apply restrained color correction and effects; prioritize readable gameplay and stable playback.",
+            "Export a high-quality H.264 MP4 preset as a starting point, then watch the full export before uploading."
+        ]
+    for i, step in enumerate(steps, 1):
+        st.markdown(f"**Step {i}.** {step}")
+    st.subheader("Export starting points")
+    st.markdown("- **Shorts:** vertical 9:16, commonly 1080 × 1920.\n- **Long-form:** horizontal 16:9, commonly 1920 × 1080 if your source supports it.\n- **Frame rate:** normally match the source (often 30 or 60 fps); exporting 30 fps footage at 60 fps doesn't create extra captured detail.\n- **Format:** high-quality H.264 MP4 is a practical starting point. Exact options differ by app/device.")
+    st.subheader(f"Editing direction — {edit_vibe}")
+    edit_vibe_guidance = {
+        "Fast meme cuts": "Keep only setup, reaction, and payoff. Use quick punch-ins sparingly, subtitle the key joke, and avoid stacking too many sounds at once.",
+        "Cinematic slow build": "Open with a striking shot, use longer shots, subtle speed changes only where justified, restrained color grading, and music that builds into the payoff.",
+        "Horror suspense": "Preserve quiet ambience, lower music under important game sounds, cut before/after tension deliberately, and avoid spoiling the scare in the opening.",
+        "Clean tutorial": "Use numbered steps, zooms on the relevant UI, clear captions, before/after proof, and remove any step that doesn't help the viewer.",
+        "Competitive montage": "Synchronize cuts to meaningful plays, keep HUD/action visible, use speed ramps sparingly, and preserve enough lead-in to understand each play.",
+        "Story documentary": "Organize clips chronologically or by argument, use voice-over to bridge gaps, and avoid music over essential dialogue.",
+        "Cozy / relaxing": "Use gentle cuts, preserve ambient sound, keep music quiet, and avoid unnecessary overlays or sudden volume jumps.",
+        "High-energy Shorts": "Show the payoff immediately, use readable captions, reframe to vertical safely, and keep each beat moving toward one clear outcome.",
+        "Minimal raw gameplay": "Trim dead time, keep authentic game audio, add only essential labels, and avoid effects that make the gameplay harder to read."
+    }
+    st.write(edit_vibe_guidance[edit_vibe])
+    st.write("**Style baseline:** " + selected_style["edit"])
+    st.subheader("Editing timeline")
+    if "Shorts" in video_format:
+        timeline = ["0–2 s: show the strongest moment or question; no logo intro.", "2–6 s: add only the context needed to understand the moment.", "6–20 s: develop the action, joke, tip, or tension; remove pauses.", "20 s to payoff: deliver the result and end cleanly; use only the length the idea needs."]
+    else:
+        timeline = ["Opening: show the promised outcome or an intriguing moment before greetings.", "Setup: explain the goal, rules, or question in a few sentences.", "Middle: build 3–5 distinct beats; cut repetition and label useful context.", "Payoff: show the actual outcome and explain what it means.", "Ending: brief conclusion and a relevant next-video invitation, if natural."]
+    for i, beat in enumerate(timeline, 1):
+        st.markdown(f"**Timeline {i}.** {beat}")
+    st.checkbox("Aspect ratio and resolution checked", key="check_aspect")
+    st.checkbox("Frame rate matches source where practical", key="check_fps")
+    st.checkbox("Gameplay/dialogue is clear and music doesn't drown it out", key="check_audio")
+    st.checkbox("Captions and export checked from start to finish", key="check_export")
+
+with music_tab:
+    st.header(f"Music mood and licensing for {game}")
+    music_catalog = {
+        "Cinematic orchestral": ("orchestral build, cinematic tension, epic instrumental, strings, trailer percussion", "Use a gradual build; let the strongest visual land with the musical rise."),
+        "Funny / quirky": ("playful pizzicato, quirky percussion, light funk, comedic instrumental, cartoon pluck", "Use short accents around the joke; keep them lower than dialogue and game audio."),
+        "Dark horror ambience": ("dark ambient drone, suspense texture, eerie piano, tension pulse, horror atmosphere", "Leave quiet gaps so footsteps, warnings, and game ambience remain audible."),
+        "High-energy electronic": ("high energy electronic, driving beat, synth bass, action instrumental", "Match beat changes to meaningful gameplay moments, not every cut."),
+        "Emotional piano": ("emotional piano, reflective instrumental, gentle strings, melancholic ambient", "Use softer music under story scenes and avoid masking dialogue."),
+        "Chill lo-fi": ("lo-fi instrumental, mellow beat, warm ambient, relaxed background music", "Keep the beat steady and low so gameplay remains the focus."),
+        "Epic action percussion": ("epic percussion, cinematic drums, action rhythm, energetic instrumental", "Use the biggest hits for actual stakes or payoff; avoid constant loudness."),
+        "No music / game audio only": ("no music, original game audio, ambience, gameplay sound", "Prioritize clean game audio and voice; check the game's own music/copyright settings.")
+    }
+    music_terms, music_edit_tip = music_catalog[music_mood]
+    st.write(f"**Chosen music category:** {music_mood}")
+    st.write(f"**Direction for {style.lower()} gameplay:** {selected_style['music']}")
+    st.write("**Search keywords for YouTube Audio Library:** " + music_terms)
+    st.write("**Mixing tip:** " + music_edit_tip)
+    st.write("**Additional style keywords:** " + selected_style["keywords"])
+    st.markdown("[Open YouTube Audio Library](https://youtube.com/audiolibrary)")
+    st.markdown("[Read YouTube's official Audio Library guidance](https://support.google.com/youtube/answer/3376882)")
+    st.warning("This app recommends music moods and search terms; it does not select or verify an individual track. Check that specific track's licence, commercial/monetization terms, platform use, and attribution requirements. YouTube Audio Library is the safer starting point; third-party ‘no copyright’ labels alone are not proof of permission.")
+    st.subheader("Before using a track")
+    st.checkbox("I found the track in YouTube Audio Library or have clear permission", key="music_permission")
+    st.checkbox("I checked this track's exact terms for monetization and use", key="music_terms")
+    st.checkbox("I copied required attribution exactly into the description", key="music_credit")
+    st.checkbox("I confirmed the track suits this video format and length", key="music_format")
+
+with research_tab:
+    st.header(f"Research: {game}")
+    st.success(f"All search links below are generated from your current game name: **{game}**")
+    st.write("These buttons open external search pages. Review dates, platforms, editions, sources, and results yourself; this app does not automatically read or verify the pages.")
+    st.link_button(f"Search YouTube for {game} videos", youtube_search, use_container_width=True)
+    st.link_button(f"Search the web for {game} tips and news", web_search, use_container_width=True)
+    st.link_button(f"Find official {game} / publisher information", official_search, use_container_width=True)
+    st.link_button(f"Research trends related to {game}", trend_search, use_container_width=True)
+    st.subheader("Research questions")
+    st.markdown(f"- What are viewers asking about **{game}** right now?\n- Which recent videos about **{game}** are getting discussion, and what is genuinely different about them?\n- Are updates, releases, modes, or platform versions current?\n- Can you make an original video based on your own gameplay rather than copying another creator?")
+    custom_query = st.text_input("Add a specific research question", placeholder=f"e.g. best beginner settings for {game}", key="research_question")
+    if custom_query.strip():
+        st.link_button("Search this question", search_url("https://www.google.com/search?q=", f"{game} {custom_query.strip()}"), use_container_width=True)
+
+with discovery_tab:
+    st.header("Audience & Game Finder")
+    st.write("Use this to shortlist games that fit your audience, platform, category, and spending limit. It uses searches and the information you provide; it does not automatically retrieve live trends or comments.")
+    col1, col2 = st.columns(2)
+    with col1:
+        finder_platform = st.selectbox("Platform you can play on", PLATFORMS, key="finder_platform")
+        finder_category = st.selectbox("Category to explore", ["Any category"] + GENRES[1:], key="finder_category")
+        budget = st.selectbox("Maximum game budget", ["Free-to-play only", "₹500", "₹1,000", "₹2,000", "₹5,000", "No fixed budget"], key="finder_budget")
+    with col2:
+        pc_cpu = st.text_input("PC CPU (PC only)", placeholder="e.g. Intel Core i5-7500", key="pc_cpu")
+        pc_gpu = st.text_input("PC GPU (PC only)", placeholder="e.g. Intel HD Graphics 630", key="pc_gpu")
+        pc_ram = st.selectbox("PC RAM (PC only)", ["Not applicable / unsure", "4 GB", "8 GB", "16 GB", "32 GB or more"], key="pc_ram")
+    audience_notes = st.text_area("Audience clues (optional)", placeholder="What do viewers ask for? What are your top videos about?", key="audience_notes")
+    comment_text = st.text_area("Paste viewer comments (optional)", placeholder="Paste comments you are allowed to use. Remove personal details.", key="comment_text")
+    if st.button("Build game discovery searches", type="primary", key="discover_games"):
+        cat = "" if finder_category == "Any category" else finder_category
+        queries = [
+            f"best trending {cat} games {finder_platform} {date.today().year}",
+            f"new and upcoming {cat} games {finder_platform} {date.today().year}",
+            f"popular {cat} games on YouTube {finder_platform} {date.today().year}"
+        ]
+        if budget != "No fixed budget":
+            queries = [q + (" free" if budget == "Free-to-play only" else f" under {budget}") for q in queries]
+        if finder_platform == "PC / laptop" and pc_gpu.strip():
+            queries.append(f"games playable on {pc_gpu} {pc_cpu} {pc_ram} RAM minimum requirements")
+        st.subheader("Three research routes")
+        for i, q in enumerate(queries[:3], 1):
+            st.markdown(f"**Research route {i}:** {q}")
+            st.link_button(f"Open search {i}", search_url("https://www.google.com/search?q=", q), key=f"discover_link_{i}")
+        st.caption("Compare at least two sources, confirm the exact platform/edition and current price, and don't treat search ranking alone as proof that a game is trending.")
+        if finder_platform == "PC / laptop":
+            st.info("PC compatibility requires checking the exact CPU, GPU, RAM, OS, storage, and the game's minimum/recommended requirements. Search results are not a benchmark; frame rate cannot be guaranteed from these fields alone.")
+        if audience_notes.strip() or comment_text.strip():
+            st.subheader("Audience clues you supplied")
+            combined = (audience_notes + " " + comment_text).lower()
+            # Lightweight keyword counts, clearly labelled as simple text clues rather than AI sentiment.
+            terms = ["game", "story", "horror", "racing", "multiplayer", "tutorial", "tips", "challenge", "minecraft", "call of duty", "gta", "fortnite", "price", "free"]
+            found = [(term, combined.count(term)) for term in terms if combined.count(term) > 0]
+            if found:
+                st.write("Repeated keyword clues: " + ", ".join(f"{term} ({count})" for term, count in sorted(found, key=lambda x: x[1], reverse=True)))
+            else:
+                st.write("No keywords from the simple built-in list were detected. Review the comments manually for requests and questions.")
+            st.caption("This is basic keyword counting, not sentiment analysis, demographic analysis, or a direct connection to YouTube comments.")
+
+with publish_tab:
+    st.header("Publishing plan & what to measure")
+    upload_date = st.date_input("Planned upload date", value=date.today() + timedelta(days=1), key="upload_date")
+    time_window = st.selectbox("Posting window to test (local time)", ["Morning", "Afternoon", "Evening", "Late evening"], index=2, key="posting_window")
+    cadence = st.selectbox("Sustainable cadence", ["One video a week", "Two videos a week", "Three Shorts a week", "One Short + one long video a week", "Flexible / learning first"], key="cadence")
+    st.write(f"**Plan:** {cadence}; target date **{upload_date.strftime('%d %b %Y')}**; test the **{time_window.lower()}** window.")
+    st.warning("There is no universal best posting time. Treat this as a test window, then use YouTube Studio → Analytics → Audience and your own performance data to adjust. This app cannot see your audience activity automatically.")
+    st.subheader("After publishing, review")
+    st.markdown("- **Reach:** impressions and traffic sources.\n- **Packaging:** click-through rate (CTR), compared with your own channel's usual results and traffic source.\n- **Retention:** first 30 seconds for long-form, and viewed-versus-swiped-away/retention for Shorts where available.\n- **Engagement:** meaningful comments, likes, shares, and returning viewers.\n- **Next experiment:** change one thing at a time—hook, topic, thumbnail/title, or pacing.")
+    st.markdown("[Open YouTube Studio](https://studio.youtube.com/)")
+    st.checkbox("Recording backed up and edit/export checked", key="pub_backup")
+    st.checkbox("Title and thumbnail accurately match the video", key="pub_title")
+    st.checkbox("Description, relevant tags, and music permissions checked", key="pub_description")
+    st.checkbox("Visibility, audience setting, and restrictions checked after upload", key="pub_visibility")
+
+st.divider()
+st.caption("PS5 YouTube Coach • Free planning starter • No automatic YouTube account access, live trend verification, licence verification, upload scheduling, or guaranteed growth in this version.")
