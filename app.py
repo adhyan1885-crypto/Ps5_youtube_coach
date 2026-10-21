@@ -11,7 +11,7 @@ PRESETS = [
     "Ghost of Tsushima", "Grand Theft Auto V", "Grand Theft Auto VI", "Call of Duty",
     "Call of Duty: Modern Warfare", "Minecraft", "Forza Horizon 5", "Forza Horizon 6",
     "The Last of Us Part I", "The Last of Us Part II", "God of War (2018)",
-    "God of War Ragnarök", "Fortnite", "Valorant", "EA SPORTS FC", "Other / future game"
+    "God of War Ragnarök", "Fortnite", "Valorant", "EA SPORTS FC", "Other "cyberpunk 2077" / future games 
 ]
 GENRES = ["Auto / not sure", "Action-adventure", "Open world", "FPS / shooter", "RPG",
           "Racing", "Survival / horror", "Sandbox / building", "Sports", "Fighting",
